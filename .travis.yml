@@ -34,4 +34,4 @@ env:
 # After success, report test coverage and update doxygen (master branch)
 after_success:
   - coveralls --include src --include include --gcov-options '\-lp'
-  - if [ "$TRAVIS_BRANCH" == "master" ]; then chmod u+x .travis/after_success.sh; .travis/after_success.sh; fi
+  - if [ "$TRAVIS_BRANCH" == "master" && "$TRAVIS_PULL_REQUEST" == "false" ]; then chmod u+x .travis/update_doc.sh; .travis/update_doc.sh; fi
