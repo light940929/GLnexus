@@ -253,6 +253,27 @@ static Status update_joint_call_loss(bcf1_t* record, int n_bcf_samples, const ve
     return Status::OK();
 }
 
+// For a "trimmable" alt allele, trim the extra padded bases at
+// the thend of the allele such that the record_rng matches the
+// unified_rng
+static pair<range, string> trim_allele(const string ref, string allele,
+    const range unified_rng, const range record_rng) {
+
+    // record's allele can be trimmed to match
+    if (unified_rng.beg == record_rng.beg && record_rng.end > unified_rng.end) {
+        int n_bases_trim = record_rng.end - unified_rng.end;
+
+        // trimming is possible and trim does not lose mutation information
+        if (n_bases_trim < allele.size() && n_bases_trim < ref.size() && ref.substr(ref.size() - n_bases_trim) == allele.substr(allele.size() - n_bases_trim)) {
+
+            return make_pair(unified_rng, allele.substr(0, allele.size() - n_bases_trim));
+        }
+    }
+
+    // default behavior
+    return make_pair(record_rng, allele);
+}
+
 // Translate the hard-called genotypes from the bcf1_t into our genotype
 // vector, based on a mapping from the bcf1_t sample indices into indices of
 // the genotype vector. Calls on update_orig_calls_for_loss to register
@@ -273,11 +294,22 @@ static Status translate_genotypes(const genotyper_config& cfg, const unified_sit
     range rng(record);
     allele_mapping.push_back(rng.contains(site.pos) ? 0 : -1);
 
+    // an alt is trimmable if the unified site range is strictly within
+    // the range of the record, which is not a gvcf record and both ranges 
+    // have the same beginning position.
+    bool trimmable = (rng.rid == site.pos.rid && rng.beg == site.pos.beg && rng.end > site.pos.end && !is_gvcf_ref_record(cfg, record));
+
+
     // map the bcf1_t alt alleles according to unification
     for (int i = 1; i < record->n_allele; i++) {
-        auto p = site.unification.find(make_pair(rng, string(record->d.allele[i])));
+        pair<range, string> rng_al_pair = make_pair(rng, string(record->d.allele[i]));
+        if (trimmable) {
+            rng_al_pair = trim_allele(string(record->d.allele[0]), string(record->d.allele[i]), site.pos, rng);
+        }
+        auto p = site.unification.find(rng_al_pair);
         allele_mapping.push_back(p != site.unification.end() ? p->second : -1);
     }
+
 
     // get the genotype calls
     int *gt = nullptr, gtsz = 0;
