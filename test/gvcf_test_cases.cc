@@ -542,3 +542,8 @@ TEST_CASE("join record logic test: insufficient ref depth") {
 
     join_record_case.perform_gvcf_test(cfg);
 }
+
+TEST_CASE("rs11429009") {
+    GVCFTestCase rs11429009("rs11429009");
+    rs11429009.perform_gvcf_test();
+}
